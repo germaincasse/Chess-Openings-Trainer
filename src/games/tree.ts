@@ -1,4 +1,5 @@
 import { START_KEY, type Color } from '../lib/chess';
+import { t } from '../i18n';
 import { openingAt, openingFamily } from '../lib/openings';
 import type { GameRecord, Result, Speed } from './types';
 
@@ -124,7 +125,7 @@ export function openingUsage(games: GameRecord[], color: Color, byFamily: boolea
     let depth = keys.length;
     while (depth > 0 && !openingAt(keys[depth - 1])) depth--;
     const op = depth ? openingAt(keys[depth - 1]) : undefined;
-    const name = op ? (byFamily ? openingFamily(op.name) : op.name) : 'Ouverture non répertoriée';
+    const name = op ? (byFamily ? openingFamily(op.name) : op.name) : t('common.unlistedOpening');
     let u = map.get(name);
     if (!u) {
       const family = op ? openingFamily(op.name) : name;

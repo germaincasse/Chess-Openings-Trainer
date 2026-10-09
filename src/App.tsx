@@ -1,4 +1,8 @@
 import { useEffect, useMemo } from 'react';
+import { AppearanceMenu } from './components/AppearanceMenu';
+import { LangSwitch } from './components/LangSwitch';
+import { applyAppearance } from './theme/themes';
+import { useT, type TKey } from './i18n';
 import { requestPersistence } from './store/db';
 import { loadState, setView, useStore, type View } from './store/store';
 import { loadOpenings } from './lib/openings';
@@ -10,28 +14,26 @@ import { ImportView } from './views/ImportView';
 import { RepertoireView } from './views/RepertoireView';
 import { TrainingView } from './views/TrainingView';
 
-const TABS: { id: View; label: string }[] = [
-  { id: 'explorer', label: 'Explorateur' },
-  { id: 'repertoire', label: 'Répertoire' },
-  { id: 'training', label: 'Entraînement' },
-  { id: 'import', label: 'Import' },
-  { id: 'analysis', label: 'Analyse' },
-  { id: 'data', label: 'Données' },
-];
+const TABS: View[] = ['explorer', 'repertoire', 'training', 'import', 'analysis', 'data'];
 
 export function App() {
+  const t = useT();
   const s = useStore();
 
   useEffect(() => {
     Promise.all([loadOpenings(), loadState()]).then(() => requestPersistence());
   }, []);
 
+  useEffect(() => {
+    applyAppearance(s.settings.boardTheme, s.settings.pieceSet);
+  }, [s.settings.boardTheme, s.settings.pieceSet]);
+
   const due = useMemo(
     () => (s.loaded ? repStats(s.reps.white).due + repStats(s.reps.black).due : 0),
     [s.loaded, s.reps, s.repsRev],
   );
 
-  if (!s.loaded) return <div className="loading-screen">Chargement…</div>;
+  if (!s.loaded) return <div className="loading-screen">{t('common.loading')}</div>;
 
   return (
     <div className="app">
@@ -40,14 +42,18 @@ export function App() {
           Chess <span>Openings</span> Trainer
         </div>
         <nav className="nav">
-          {TABS.map((t) => (
-            <button key={t.id} className={s.view === t.id ? 'active' : ''} onClick={() => setView(t.id)}>
-              {t.label}
-              {t.id === 'training' && due > 0 && <span className="badge">{due}</span>}
-              {t.id === 'analysis' && !!s.report?.items.length && <span className="badge">{s.report.items.length}</span>}
+          {TABS.map((id) => (
+            <button key={id} className={s.view === id ? 'active' : ''} onClick={() => setView(id)}>
+              {t(`common.nav.${id}` as TKey)}
+              {id === 'training' && due > 0 && <span className="badge">{due}</span>}
+              {id === 'analysis' && !!s.report?.items.length && <span className="badge">{s.report.items.length}</span>}
             </button>
           ))}
         </nav>
+        <div className="topbar-tools">
+          <AppearanceMenu />
+          <LangSwitch />
+        </div>
       </header>
       <main className="main">
         {s.view === 'explorer' && <ExplorerView />}

@@ -76,7 +76,17 @@ export function Board({ fen, orientation, lastMove, movable, onMove, arrows = []
         },
       },
     });
-    return () => api.current?.destroy();
+    // chessground caches the board rectangle and only refreshes it on scroll and window resize.
+    // Any other layout shift (eval bar shown, scrollbar appearing, panels growing, zoom) would
+    // misalign clicks and pieces: measure again at every press, before chessground handles it.
+    const refreshBounds = () => api.current?.state.dom.bounds.clear();
+    const opts = { capture: true, passive: true };
+    const target = el.current;
+    for (const ev of ['mousedown', 'touchstart'] as const) target.addEventListener(ev, refreshBounds, opts);
+    return () => {
+      for (const ev of ['mousedown', 'touchstart'] as const) target.removeEventListener(ev, refreshBounds, opts);
+      api.current?.destroy();
+    };
   }, []);
 
   useEffect(() => {

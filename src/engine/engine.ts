@@ -1,4 +1,5 @@
 import { Chess } from 'chess.js';
+import { t } from '../i18n';
 import { fenTurn } from '../lib/chess';
 
 // Stockfish (lite, single-threaded WASM) driven over UCI in a Web Worker.
@@ -24,6 +25,8 @@ export interface EngineResult {
 export interface SearchOptions {
   multiPv: number;
   depth: number;
+  /** Restricts the search to these root moves (UCI). */
+  searchMoves?: string[];
 }
 
 interface Job {
@@ -52,7 +55,7 @@ export class Engine {
     this.worker = new Worker(`${import.meta.env.BASE_URL}engine/stockfish.js`);
     this.worker.onmessage = (e) => this.onLine(String(e.data), hashMb);
     this.worker.onerror = () => {
-      this.error = 'Impossible de charger Stockfish.';
+      this.error = t('common.engineLoadFailed');
       this.flush(true);
     };
     this.send('uci');
@@ -77,6 +80,8 @@ export class Engine {
       const job = this.job;
       this.job = null;
       if (job) {
+        // A depth interrupted by "stop" may not have every line: keep what arrived rather than nothing.
+        if (!job.result.lines.length && job.pending.length) job.result.lines = job.pending.filter(Boolean);
         job.result.done = true;
         job.result.cancelled = job.cancelled;
         job.onUpdate?.(job.result);
@@ -125,7 +130,8 @@ export class Engine {
       this.send(`setoption name MultiPV value ${this.multiPv}`);
     }
     this.send(`position fen ${job.fen}`);
-    this.send(`go depth ${job.opts.depth}`);
+    const restrict = job.opts.searchMoves?.length ? ` searchmoves ${job.opts.searchMoves.join(' ')}` : '';
+    this.send(`go depth ${job.opts.depth}${restrict}`);
   }
 
   private flush(includeCurrent: boolean) {
@@ -148,7 +154,8 @@ export class Engine {
     return new Promise((resolve) => {
       const result: EngineResult = { fen, depth: 0, lines: [], done: false };
       if (this.error) return resolve({ ...result, cancelled: true });
-      const expected = Math.max(1, Math.min(opts.multiPv, new Chess(fen).moves().length));
+      const legal = opts.searchMoves?.length ?? new Chess(fen).moves().length;
+      const expected = Math.max(1, Math.min(opts.multiPv, legal));
       this.queue.push({ fen, opts, onUpdate, resolve, result, cancelled: false, lastEmit: 0, pending: [], pendingDepth: 0, expected });
       this.pump();
     });
@@ -166,7 +173,7 @@ export class Engine {
   }
 
   terminate() {
-    this.error ??= 'Moteur arrêté.';
+    this.error ??= t('common.engineStopped');
     this.flush(true);
     this.worker.terminate();
   }

@@ -1,3 +1,5 @@
+import { locale } from '../i18n';
+
 export const DAY = 24 * 3600 * 1000;
 
 export function pct(x: number, digits = 0): string {
@@ -9,7 +11,7 @@ export function score(w: number, d: number, n: number): number {
 }
 
 export function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(ts).toLocaleDateString(locale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function plural(n: number, word: string, pluralWord = word + 's'): string {

@@ -1,6 +1,7 @@
 import { fenTurn, START_KEY, type Color, type Ply } from '../lib/chess';
 import { pliesFromSans, START_FEN } from '../lib/chess';
 import type { PgnGame } from '../lib/pgn';
+import { t } from '../i18n';
 
 // A repertoire is a position graph: transpositions share the same node.
 
@@ -9,7 +10,7 @@ export interface RepMove {
   san: string;
   /** Key of the position reached. */
   to: string;
-  source: 'manual' | 'import' | 'pgn';
+  source: 'manual' | 'import' | 'pgn' | 'engine';
   addedAt: number;
 }
 
@@ -207,8 +208,8 @@ export function exportPgn(rep: Repertoire, event: string): string {
     `[Event "${event}"]`,
     `[Site "Chess Openings Trainer"]`,
     `[Date "${new Date().toISOString().slice(0, 10).replace(/-/g, '.')}"]`,
-    `[White "${rep.color === 'white' ? 'Moi' : '?'}"]`,
-    `[Black "${rep.color === 'black' ? 'Moi' : '?'}"]`,
+    `[White "${rep.color === 'white' ? t('common.me') : '?'}"]`,
+    `[Black "${rep.color === 'black' ? t('common.me') : '?'}"]`,
     `[Result "*"]`,
   ];
   return `${headers.join('\n')}\n\n${wrapped.join('\n')}\n`;

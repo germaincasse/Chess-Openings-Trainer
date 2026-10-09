@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { useT } from '../i18n';
 import { colorLabel, formatLine, START_KEY, type Color } from '../lib/chess';
 import { openingAt, type OpeningName } from '../lib/openings';
 import { parsePgn } from '../lib/pgn';
-import { downloadText, plural } from '../lib/util';
+import { downloadText } from '../lib/util';
 import {
   emptyRepertoire,
   exportPgn,
@@ -134,6 +135,7 @@ interface BranchProps {
 }
 
 function Branch({ ctx, from, move, base, depth, parentName }: BranchProps) {
+  const t = useT();
   const [open, setOpen] = useState(() => defaultOpen(ctx.mode, depth));
   const { rep, side } = ctx;
   const row = buildRow(rep, ctx.idx, from, move);
@@ -153,7 +155,7 @@ function Branch({ ctx, from, move, base, depth, parentName }: BranchProps) {
           <button
             className={`rt-toggle ${open ? 'open' : ''}`}
             onClick={() => setOpen(!open)}
-            title={open ? 'Replier' : 'Déplier'}
+            title={t(open ? 'repertoire.collapse' : 'repertoire.expand')}
             aria-expanded={open}
           >
             <Icon name="next" size={14} />
@@ -178,7 +180,7 @@ function Branch({ ctx, from, move, base, depth, parentName }: BranchProps) {
                 <button
                   className={`rt-mv ${isOwnerTurn(rep, k) ? 'own' : 'opp'}`}
                   onClick={() => openInExplorer([...base, ...ucis.slice(0, i + 1)], side)}
-                  title="Ouvrir dans l'explorateur"
+                  title={t('repertoire.openInExplorer')}
                 >
                   {m.san}
                 </button>
@@ -187,20 +189,20 @@ function Branch({ ctx, from, move, base, depth, parentName }: BranchProps) {
             );
           })}
           {row.transposition && (
-            <span className="tag blue rt-tag" title="Cette position est déjà développée plus haut dans l'arbre">
-              transposition
+            <span className="tag blue rt-tag" title={t('repertoire.transpositionTitle')}>
+              {t('repertoire.transposition')}
             </span>
           )}
           {hasBranches && !open && (
             <button className="tag rt-tag rt-more" onClick={() => setOpen(true)}>
-              {plural(row.branches.length, 'suite')}
+              {t('repertoire.branches', { count: row.branches.length })}
             </button>
           )}
         </div>
         {trainable && (
           <button
             className="icon-btn small rt-train"
-            title="S'entraîner sur cette ligne"
+            title={t('repertoire.trainLine')}
             onClick={() => startTraining([...base, move.uci], side)}
           >
             <Icon name="play" size={13} />
@@ -271,22 +273,27 @@ function searchOpenings(idx: RepIndex, query: string, limit = 60): SearchHit[] {
 }
 
 function SearchResults({ idx, query, side }: { idx: RepIndex; query: string; side: Color }) {
+  const t = useT();
   const hits = useMemo(() => searchOpenings(idx, query), [idx, query]);
-  if (!hits.length) return <p className="muted small">Aucune ouverture de ce nom dans le répertoire.</p>;
+  if (!hits.length) return <p className="muted small">{t('repertoire.noSearchHit')}</p>;
   return (
     <div className="rt-results">
       {hits.map((h) => {
         const ucis = h.path.map((e) => e.uci);
         return (
           <div className="rt-result" key={h.key}>
-            <button className="rt-result-main" onClick={() => openInExplorer(ucis, side)} title="Ouvrir dans l'explorateur">
+            <button
+              className="rt-result-main"
+              onClick={() => openInExplorer(ucis, side)}
+              title={t('repertoire.openInExplorer')}
+            >
               <span className="rt-opening">
                 <span className="eco">{h.opening.eco}</span>
                 {h.opening.name}
               </span>
               <span className="rt-result-line">{formatLine(h.path.map((e) => e.san))}</span>
             </button>
-            <button className="icon-btn small" title="S'entraîner sur cette ligne" onClick={() => startTraining(ucis, side)}>
+            <button className="icon-btn small" title={t('repertoire.trainLine')} onClick={() => startTraining(ucis, side)}>
               <Icon name="play" size={13} />
             </button>
           </div>
@@ -299,22 +306,23 @@ function SearchResults({ idx, query, side }: { idx: RepIndex; query: string; sid
 // ---------- PGN import ----------
 
 function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClose: () => void }) {
+  const t = useT();
   const [text, setText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const run = (pgn: string) => {
     const games = parsePgn(pgn);
     if (!games.some((g) => g.lines.length)) {
-      toast('Aucun coup lisible dans ce PGN.', 'error');
+      toast(t('repertoire.pgnNoMoves'), 'error');
       return;
     }
     const added = importPgnGames(rep, games);
     if (!added) {
-      toast('Aucun nouveau coup : lignes déjà présentes ou illisibles.');
+      toast(t('repertoire.pgnNothingNew'));
       return;
     }
     repsChanged();
-    toast(`${plural(added, 'coup ajouté', 'coups ajoutés')} au répertoire ${colorLabel(side)}.`);
+    toast(t('repertoire.pgnAdded', { count: added, color: colorLabel(side) }));
     setText('');
     onClose();
   };
@@ -324,7 +332,7 @@ function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClo
     try {
       run(await file.text());
     } catch (e) {
-      toast(`Lecture impossible : ${(e as Error).message}`, 'error');
+      toast(t('repertoire.readFailed', { error: (e as Error).message }), 'error');
     }
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -332,18 +340,15 @@ function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClo
   return (
     <div className="panel">
       <div className="panel-head">
-        <h3 className="grow">Importer un PGN dans le répertoire {colorLabel(side)}</h3>
-        <button className="icon-btn small" onClick={onClose} title="Fermer">
+        <h3 className="grow">{t('repertoire.pgnTitle', { color: colorLabel(side) })}</h3>
+        <button className="icon-btn small" onClick={onClose} title={t('repertoire.close')}>
           <Icon name="x" size={14} />
         </button>
       </div>
-      <p className="muted small">
-        Toutes les lignes sont ajoutées, variantes comprises. Les parties qui commencent depuis une position
-        personnalisée (en-tête FEN) sont ignorées.
-      </p>
+      <p className="muted small">{t('repertoire.pgnHelp')}</p>
       <div className="row">
         <button className="btn" onClick={() => fileRef.current?.click()}>
-          <Icon name="upload" size={16} /> Choisir un fichier .pgn
+          <Icon name="upload" size={16} /> {t('repertoire.pgnChooseFile')}
         </button>
         <input
           ref={fileRef}
@@ -352,7 +357,7 @@ function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClo
           hidden
           onChange={(e) => onFile(e.target.files?.[0])}
         />
-        <span className="muted small">ou collez le texte ci-dessous</span>
+        <span className="muted small">{t('repertoire.pgnOrPaste')}</span>
       </div>
       <textarea
         rows={6}
@@ -363,7 +368,7 @@ function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClo
       />
       <div className="row">
         <button className="btn primary" disabled={!text.trim()} onClick={() => run(text)}>
-          Importer le texte
+          {t('repertoire.pgnImportText')}
         </button>
       </div>
     </div>
@@ -373,18 +378,16 @@ function PgnImport({ rep, side, onClose }: { rep: Repertoire; side: Color; onClo
 // ---------- view ----------
 
 function EmptyRepertoire({ side, onPgn }: { side: Color; onPgn: () => void }) {
+  const t = useT();
   return (
     <div className="panel">
       <div className="empty-state">
-        <h3>Le répertoire {colorLabel(side)} est vide</h3>
-        <p>Trois façons de le remplir :</p>
+        <h3>{t('repertoire.emptyTitle', { color: colorLabel(side) })}</h3>
+        <p>{t('repertoire.emptyWays')}</p>
         <div className="rt-ways">
           <div className="rt-way">
-            <strong>Dans l'explorateur</strong>
-            <p className="small">
-              Activez le mode édition (chaque coup joué est ajouté) ou jouez une ligne puis cliquez sur
-              « Ajouter la ligne ».
-            </p>
+            <strong>{t('repertoire.wayExplorer')}</strong>
+            <p className="small">{t('repertoire.wayExplorerHelp', { button: t('explorer.addLine') })}</p>
             <button
               className="btn small"
               onClick={() => {
@@ -392,24 +395,21 @@ function EmptyRepertoire({ side, onPgn }: { side: Color; onPgn: () => void }) {
                 openInExplorer([], side);
               }}
             >
-              Explorateur en mode édition
+              {t('repertoire.wayExplorerBtn')}
             </button>
           </div>
           <div className="rt-way">
-            <strong>Depuis vos parties</strong>
-            <p className="small">
-              Importez vos parties Lichess ou Chess.com : le répertoire est construit à partir des coups que vous
-              jouez réellement.
-            </p>
+            <strong>{t('repertoire.wayGames')}</strong>
+            <p className="small">{t('repertoire.wayGamesHelp')}</p>
             <button className="btn small" onClick={() => setView('import')}>
-              Importer mes parties
+              {t('repertoire.wayGamesBtn')}
             </button>
           </div>
           <div className="rt-way">
-            <strong>Depuis un PGN</strong>
-            <p className="small">Chargez un fichier PGN (avec variantes) issu d'un livre, d'un cours ou d'une étude.</p>
+            <strong>{t('repertoire.wayPgn')}</strong>
+            <p className="small">{t('repertoire.wayPgnHelp')}</p>
             <button className="btn small" onClick={onPgn}>
-              Importer un PGN
+              {t('repertoire.wayPgnBtn')}
             </button>
           </div>
         </div>
@@ -419,6 +419,7 @@ function EmptyRepertoire({ side, onPgn }: { side: Color; onPgn: () => void }) {
 }
 
 export function RepertoireView() {
+  const t = useT();
   const state = useStore();
   const side = state.settings.side;
   const rep = state.reps[side];
@@ -437,17 +438,22 @@ export function RepertoireView() {
   };
 
   const exportFile = () => {
-    const name = side === 'white' ? 'blancs' : 'noirs';
-    downloadText(`repertoire-${name}.pgn`, exportPgn(rep, `Répertoire ${colorLabel(side)}`), 'application/x-chess-pgn');
+    const white = side === 'white';
+    downloadText(
+      t(white ? 'repertoire.fileWhite' : 'repertoire.fileBlack'),
+      exportPgn(rep, t(white ? 'common.whiteRep' : 'common.blackRep')),
+      'application/x-chess-pgn',
+    );
   };
 
   const clear = () => {
-    const msg =
-      `Vider le répertoire ${colorLabel(side)} ? ${plural(stats.moves, 'coup')} et la progression ` +
-      "d'entraînement seront supprimés. Pensez à exporter un PGN ou une sauvegarde avant.";
+    const msg = t('repertoire.clearConfirm', {
+      color: colorLabel(side),
+      moves: t('common.moves', { count: stats.moves }),
+    });
     if (!confirm(msg)) return;
     setRepertoire(side, emptyRepertoire(side));
-    toast(`Répertoire ${colorLabel(side)} vidé.`);
+    toast(t('repertoire.cleared', { color: colorLabel(side) }));
   };
 
   const empty = stats.moves === 0;
@@ -456,7 +462,7 @@ export function RepertoireView() {
   return (
     <div className="page">
       <div className="page-head">
-        <h2>Répertoire</h2>
+        <h2>{t('common.nav.repertoire')}</h2>
         <div className="seg">
           {(['white', 'black'] as const).map((c) => (
             <button key={c} className={side === c ? 'active' : ''} onClick={() => setSide(c)}>
@@ -466,16 +472,16 @@ export function RepertoireView() {
         </div>
         <div className="grow" />
         <button className="btn primary" disabled={!stats.cards} onClick={() => startTraining([], side)}>
-          <Icon name="play" size={16} /> S'entraîner
+          <Icon name="play" size={16} /> {t('repertoire.train')}
         </button>
         <button className="btn" disabled={empty} onClick={exportFile}>
-          <Icon name="download" size={16} /> Exporter PGN
+          <Icon name="download" size={16} /> {t('repertoire.exportPgn')}
         </button>
         <button className="btn" onClick={() => setPgnOpen(!pgnOpen)}>
-          <Icon name="upload" size={16} /> Importer PGN
+          <Icon name="upload" size={16} /> {t('repertoire.importPgn')}
         </button>
         <button className="btn danger" disabled={empty} onClick={clear}>
-          <Icon name="trash" size={16} /> Vider
+          <Icon name="trash" size={16} /> {t('repertoire.clear')}
         </button>
       </div>
 
@@ -488,33 +494,34 @@ export function RepertoireView() {
           <div className="rt-stats">
             <div className="rt-stat">
               <strong>{stats.positions}</strong>
-              <span>positions</span>
+              <span>{t('repertoire.statPositions', { count: stats.positions })}</span>
             </div>
             <div className="rt-stat">
               <strong>{stats.moves}</strong>
-              <span>coups</span>
+              <span>{t('repertoire.statMoves', { count: stats.moves })}</span>
             </div>
             <div className="rt-stat">
               <strong>{stats.lines}</strong>
-              <span>lignes</span>
+              <span>{t('repertoire.statLines', { count: stats.lines })}</span>
             </div>
-            <div className="rt-stat" title="Positions où c'est à vous de jouer : chacune est une carte d'entraînement">
+            <div className="rt-stat" title={t('repertoire.statCardsTitle')}>
               <strong>{stats.cards}</strong>
-              <span>positions à connaître</span>
+              <span>{t('repertoire.statCards', { count: stats.cards })}</span>
             </div>
             <div className={`rt-stat ${stats.due ? 'due' : ''}`}>
               <strong>{stats.due}</strong>
-              <span>à réviser</span>
+              <span>{t('repertoire.statDue')}</span>
             </div>
           </div>
 
           <div className="panel">
             <div className="panel-head rt-head">
-              <span className="panel-title">Arbre</span>
+              <span className="panel-title">{t('repertoire.tree')}</span>
               <input
                 type="search"
                 className="rt-search"
-                placeholder="Ouverture (nom anglais ou ECO)"
+                placeholder={t('repertoire.searchPlaceholder')}
+                aria-label={t('repertoire.searchPlaceholder')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -522,17 +529,15 @@ export function RepertoireView() {
               {!searching && (
                 <>
                   <button className="btn ghost small" onClick={() => expandAll('all')}>
-                    Tout déplier
+                    {t('repertoire.expandAll')}
                   </button>
                   <button className="btn ghost small" onClick={() => expandAll('none')}>
-                    Tout replier
+                    {t('repertoire.collapseAll')}
                   </button>
                 </>
               )}
             </div>
-            <p className="muted small">
-              Vos coups en clair, ceux de l'adversaire en gris. Cliquez sur un coup pour l'ouvrir dans l'explorateur.
-            </p>
+            <p className="muted small">{t('repertoire.treeHelp')}</p>
             {searching ? (
               <SearchResults idx={idx} query={query} side={side} />
             ) : (

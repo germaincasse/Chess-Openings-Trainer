@@ -6,6 +6,9 @@ import { buildTree, filterGames, type OpeningTree } from '../games/tree';
 import type { GameRecord, GameSource, Speed } from '../games/types';
 import { addPly, emptyRepertoire, type Repertoire } from '../repertoire/model';
 import { loadKey, removeKey, saveKey } from './db';
+import { clearCandidateEvals } from '../engine/candidates';
+import { clearDrilled } from '../training/mistakes';
+import { t } from '../i18n';
 
 export type View = 'explorer' | 'repertoire' | 'training' | 'import' | 'analysis' | 'data';
 
@@ -22,6 +25,8 @@ export interface Settings {
   autoAdd: boolean;
   /** Speeds used for "my games" statistics (null: all). */
   speeds: Speed[] | null;
+  boardTheme: string;
+  pieceSet: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -34,6 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
   side: 'white',
   autoAdd: false,
   speeds: null,
+  boardTheme: 'green',
+  pieceSet: 'cburnett',
 };
 
 export interface ExplorerState {
@@ -120,7 +127,7 @@ function persist(part: Part) {
       : part === 'settings' ? state.settings
       : part === 'report' ? state.report
       : evalCache;
-    saveKey(part, value).catch((e) => toast(`Sauvegarde impossible : ${(e as Error).message}`, 'error'));
+    saveKey(part, value).catch((e) => toast(t('common.saveFailed', { error: (e as Error).message }), 'error'));
   }, 400);
 }
 
@@ -333,7 +340,7 @@ export function exportBackup(): string {
 export function importBackup(text: string) {
   const b = JSON.parse(text) as Backup;
   if (b.app !== 'chess-openings-trainer' || !b.reps?.white || !b.reps?.black) {
-    throw new Error("Ce fichier n'est pas une sauvegarde de Chess Openings Trainer.");
+    throw new Error(t('common.backupInvalid'));
   }
   update((s) => {
     s.reps = b.reps;
@@ -347,7 +354,8 @@ export function importBackup(text: string) {
 }
 
 export async function clearAll() {
-  await Promise.all(['reps', 'sources', 'settings', 'report', 'evals'].map(removeKey));
+  await Promise.all([...['reps', 'sources', 'settings', 'report', 'evals'].map(removeKey), clearCandidateEvals()]);
+  clearDrilled();
   evalCache = {};
   update((s) => {
     s.reps = { white: emptyRepertoire('white'), black: emptyRepertoire('black') };

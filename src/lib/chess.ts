@@ -1,5 +1,6 @@
 import { Chess, type Move } from 'chess.js';
 import type { Key } from 'chessground/types';
+import { t } from '../i18n';
 
 export type Color = 'white' | 'black';
 
@@ -22,7 +23,7 @@ export function fenTurn(fenOrKey: string): Color {
 
 export const opposite = (c: Color): Color => (c === 'white' ? 'black' : 'white');
 
-export const colorLabel = (c: Color) => (c === 'white' ? 'Blancs' : 'Noirs');
+export const colorLabel = (c: Color) => t(c === 'white' ? 'common.white' : 'common.black');
 
 /** One half-move, with the position reached after it. */
 export interface Ply {

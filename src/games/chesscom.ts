@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { convertSans } from './convert';
 import type { GameRecord, ImportOptions, ImportProgress, Result, Speed } from './types';
 import { START_FEN, type Color } from '../lib/chess';
@@ -66,7 +67,7 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
       continue;
     }
     if (res.status === 404) throw new Error('404');
-    if (!res.ok) throw new Error(`Erreur Chess.com (${res.status}).`);
+    if (!res.ok) throw new Error(t('common.httpError', { site: 'Chess.com', status: res.status }));
     return res.json() as Promise<T>;
   }
 }
@@ -84,7 +85,7 @@ export async function fetchChesscomGames(
       signal,
     )).archives;
   } catch (e) {
-    if ((e as Error).message === '404') throw new Error(`Compte Chess.com "${opts.username}" introuvable.`);
+    if ((e as Error).message === '404') throw new Error(t('common.accountNotFound', { site: 'Chess.com', user: opts.username }));
     throw e;
   }
 
@@ -94,7 +95,7 @@ export async function fetchChesscomGames(
   for (const url of [...archives].reverse()) {
     if (games.length >= opts.maxGames) break;
     const month = url.split('/').slice(-2).join('/');
-    onProgress({ fetched, kept: games.length, message: `Chess.com : lecture des parties de ${month}` });
+    onProgress({ fetched, kept: games.length, message: t('common.chesscomMonth', { month }) });
     const { games: monthGames } = await getJson<{ games: ChesscomGame[] }>(url, signal);
     monthGames.sort((a, b) => b.end_time - a.end_time);
     for (const g of monthGames) {
@@ -106,7 +107,7 @@ export async function fetchChesscomGames(
       games.push(rec);
       if (games.length >= opts.maxGames) break;
     }
-    onProgress({ fetched, kept: games.length, message: `Chess.com : ${games.length} parties retenues` });
+    onProgress({ fetched, kept: games.length, message: t('common.chesscomKept', { count: games.length }) });
     await yieldToUi();
   }
   return games;

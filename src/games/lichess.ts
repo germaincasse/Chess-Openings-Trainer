@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { convertSans } from './convert';
 import type { GameRecord, ImportOptions, ImportProgress, Result, Speed } from './types';
 import type { Color } from '../lib/chess';
@@ -59,7 +60,7 @@ function toRecord(g: LichessGame, userId: string): GameRecord | null {
     rated: g.rated,
     color,
     result,
-    opponent: opp.user?.name ?? (opp.aiLevel ? `Stockfish niveau ${opp.aiLevel}` : 'Anonyme'),
+    opponent: opp.user?.name ?? (opp.aiLevel ? t('common.aiLevel', { level: opp.aiLevel }) : t('common.anonymous')),
     opponentRating: opp.rating,
     myRating: me.rating,
     ...conv,
@@ -87,9 +88,9 @@ export async function fetchLichessGames(
     headers: { Accept: 'application/x-ndjson' },
     signal,
   });
-  if (res.status === 404) throw new Error(`Compte Lichess "${opts.username}" introuvable.`);
-  if (res.status === 429) throw new Error('Lichess limite les requêtes : réessaie dans une minute.');
-  if (!res.ok || !res.body) throw new Error(`Erreur Lichess (${res.status}).`);
+  if (res.status === 404) throw new Error(t('common.accountNotFound', { site: 'Lichess', user: opts.username }));
+  if (res.status === 429) throw new Error(t('common.rateLimited', { site: 'Lichess' }));
+  if (!res.ok || !res.body) throw new Error(t('common.httpError', { site: 'Lichess', status: res.status }));
 
   const games: GameRecord[] = [];
   const seen = new Set<string>();
@@ -113,11 +114,11 @@ export async function fetchLichessGames(
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
     lines.forEach(handle);
-    onProgress({ fetched, kept: games.length, message: `${fetched} parties reçues de Lichess` });
+    onProgress({ fetched, kept: games.length, message: t('common.lichessProgress', { count: fetched }) });
     await yieldToUi();
   }
   handle(buffer);
   reader.cancel().catch(() => {});
-  onProgress({ fetched, kept: games.length, message: `${fetched} parties reçues de Lichess` });
+  onProgress({ fetched, kept: games.length, message: t('common.lichessProgress', { count: fetched }) });
   return games;
 }

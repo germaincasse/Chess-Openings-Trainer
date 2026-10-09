@@ -1,4 +1,5 @@
 import { fenTurn, keyToFen, moveLabel, sanOf, START_KEY, type Color } from '../lib/chess';
+import { msg, t, type Msg } from '../i18n';
 import { pct } from '../lib/util';
 import { Engine, type EngineLine } from '../engine/engine';
 import { cpFor, formatCp, lineCp, winPct } from '../engine/evaluation';
@@ -7,12 +8,10 @@ import { hasMove, inRepertoire, repMoves, type Repertoire } from '../repertoire/
 
 export type WeaknessKind = 'engine' | 'results' | 'consistency' | 'gap';
 
-export const KIND_LABEL: Record<WeaknessKind, string> = {
-  engine: 'Erreurs théoriques',
-  results: 'Lignes difficiles',
-  consistency: 'Incohérences',
-  gap: 'Trous du répertoire',
-};
+export type WeaknessLevel = 'inaccuracy' | 'mistake' | 'blunder';
+
+export const kindLabel = (k: WeaknessKind) => t(`weak.kind.${k}`);
+export const levelLabel = (l: WeaknessLevel) => t(`weak.level.${l}`);
 
 export interface Arrow {
   uci: string;
@@ -28,10 +27,11 @@ export interface Weakness {
   key: string;
   severity: number;
   games: number;
-  title: string;
-  detail: string;
+  /** Stored as messages so a saved report follows the interface language (strings in old reports). */
+  title: Msg | string;
+  detail: Msg | string;
   arrows: Arrow[];
-  level?: 'inaccuracy' | 'mistake' | 'blunder';
+  level?: WeaknessLevel;
   /** For engine findings: the move played and the engine's choice. */
   played?: string;
   best?: string;
@@ -73,8 +73,6 @@ export interface AnalysisProgress {
   total: number;
   message: string;
 }
-
-const LEVEL_LABEL = { inaccuracy: 'Imprécision', mistake: 'Erreur', blunder: 'Gaffe' } as const;
 
 const record = (s: { w: number; d: number; l: number }) => `+${s.w} =${s.d} -${s.l}`;
 
@@ -130,8 +128,8 @@ function staticFindings(tree: OpeningTree, rep: Repertoire, positions: Visited[]
           key,
           severity: m.n * (parentScore - s),
           games: m.n,
-          title: mine ? `Votre coup ${label} vous réussit mal` : `Vous peinez contre ${label}`,
-          detail: `${pct(s)} de points sur ${m.n} parties (${record(m)}), contre ${pct(parentScore)} juste avant.`,
+          title: { key: mine ? 'weak.resultsMineTitle' : 'weak.resultsOppTitle', params: { move: label } },
+          detail: { key: 'weak.resultsDetail', params: { score: pct(s), count: m.n, record: record(m), before: pct(parentScore) } },
           arrows: [{ uci: m.uci, brush: mine ? 'red' : 'yellow' }],
         });
       }
@@ -150,8 +148,8 @@ function staticFindings(tree: OpeningTree, rep: Repertoire, positions: Visited[]
           key,
           severity: total * (1 - top.n / total) * 0.5,
           games: total,
-          title: path.length ? 'Pas de coup fixe dans cette position' : 'Pas de premier coup fixe',
-          detail: `Vous alternez entre ${used.map((m) => `${m.san} (${m.n})`).join(', ')}. Choisir une ligne aide à l'approfondir.`,
+          title: { key: path.length ? 'weak.noFixedTitle' : 'weak.noFixedFirstTitle' },
+          detail: { key: 'weak.noFixedDetail', params: { moves: used.map((m) => `${m.san} (${m.n})`).join(', ') } },
           arrows: used.slice(0, 3).map((m) => ({ uci: m.uci, brush: 'blue' as const })),
         });
       }
@@ -166,8 +164,11 @@ function staticFindings(tree: OpeningTree, rep: Repertoire, positions: Visited[]
           key,
           severity: top.n * 0.6,
           games: top.n,
-          title: `Écart avec votre répertoire (${moveLabel(top.san, ply)})`,
-          detail: `Votre répertoire prévoit ${planned.map((m) => m.san).join(' ou ')}, mais en partie vous jouez ${top.san} (${top.n} fois).`,
+          title: { key: 'weak.deviationTitle', params: { move: moveLabel(top.san, ply) } },
+          detail: {
+            key: 'weak.deviationDetail',
+            params: { planned: planned.map((m) => m.san).join(' / '), played: top.san, count: top.n },
+          },
           arrows: [
             ...planned.map((m) => ({ uci: m.uci, brush: 'green' as const })),
             { uci: top.uci, brush: 'red' as const },
@@ -189,8 +190,8 @@ function staticFindings(tree: OpeningTree, rep: Repertoire, positions: Visited[]
           key,
           severity: m.n * 0.4,
           games: m.n,
-          title: known ? `Pas de réponse préparée à ${label}` : `${label} n'est pas dans votre répertoire`,
-          detail: `Rencontré ${m.n} fois (${pct(scoreOf(m))} de points). Ajoutez votre réponse depuis l'explorateur.`,
+          title: { key: known ? 'weak.gapKnownTitle' : 'weak.gapMissingTitle', params: { move: label } },
+          detail: { key: 'weak.gapDetail', params: { count: m.n, score: pct(scoreOf(m)) } },
           arrows: [{ uci: m.uci, brush: 'yellow' }],
         });
       }
@@ -232,7 +233,7 @@ async function engineFindings(
   for (let i = 0; i < candidates.length; i++) {
     if (signal.aborted) break;
     const { key, path, node } = candidates[i];
-    onProgress({ done: offset + i, total: grandTotal, message: `Stockfish analyse vos coups avec les ${color === 'white' ? 'Blancs' : 'Noirs'}` });
+    onProgress({ done: offset + i, total: grandTotal, message: t(color === 'white' ? 'weak.progressWhite' : 'weak.progressBlack') });
     const lines = await evaluate(engine, store, key, 3, opts.depth);
     if (!lines.length) continue;
     const best = lines[0];
@@ -252,7 +253,7 @@ async function engineFindings(
       const loss = winPct(bestCp) - winPct(cp);
       if (loss < opts.minWinLoss) continue;
       // Lichess thresholds (0.1 / 0.2 / 0.3 of winning chances), in win percentage points.
-      const level = loss >= 15 ? 'blunder' : loss >= 10 ? 'mistake' : 'inaccuracy';
+      const level: WeaknessLevel = loss >= 15 ? 'blunder' : loss >= 10 ? 'mistake' : 'inaccuracy';
       const fen = keyToFen(key);
       const bestSan = sanOf(fen, bestUci);
       items.push({
@@ -266,8 +267,19 @@ async function engineFindings(
         level,
         played: m.uci,
         best: bestUci,
-        title: `${LEVEL_LABEL[level]} : ${moveLabel(m.san, path.length)}`,
-        detail: `Joué ${m.n} fois (${pct(scoreOf(m))} de points). Stockfish préfère ${bestSan} : ${formatCp(bestCp)} contre ${formatCp(cp)} après ${m.san} (profondeur ${opts.depth}).`,
+        title: { key: `weak.engineTitle.${level}`, params: { move: moveLabel(m.san, path.length) } },
+        detail: {
+          key: 'weak.engineDetail',
+          params: {
+            count: m.n,
+            score: pct(scoreOf(m)),
+            best: bestSan,
+            bestEval: formatCp(bestCp),
+            playedEval: formatCp(cp),
+            played: m.san,
+            depth: opts.depth,
+          },
+        },
         arrows: [
           { uci: m.uci, brush: 'red' },
           { uci: bestUci, brush: 'green' },
@@ -320,3 +332,9 @@ export async function analyzeWeaknesses(
   items.sort((a, b) => b.severity - a.severity);
   return { generatedAt: Date.now(), options: opts, games, items };
 }
+
+/** Title and detail in the current language. */
+export function describeWeakness(w: Weakness): { title: string; detail: string } {
+  return { title: msg(w.title), detail: msg(w.detail) };
+}
+

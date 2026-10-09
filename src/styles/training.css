@@ -7,6 +7,18 @@
   max-width: 520px;
 }
 
+.training-empty .panel-head {
+  flex-wrap: wrap;
+}
+
+.training .seg {
+  flex-wrap: wrap;
+}
+
+.seg .train-badge {
+  margin-left: 6px;
+}
+
 .train-root {
   display: flex;
   align-items: center;
@@ -30,6 +42,16 @@
   font-size: 0.88rem;
   color: var(--text-2);
   white-space: pre-line;
+}
+
+/* the position of the mistake, in a focused line */
+.train-banner {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--warn);
+  background: rgba(230, 176, 58, 0.14);
+  color: #f3c763;
+  font-weight: 700;
 }
 
 .train-stats {
@@ -62,4 +84,125 @@
 .train-stat > span {
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+/* ---------- my mistakes ---------- */
+.train-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+
+.train-notice,
+.train-congrats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.train-notice p {
+  font-weight: 600;
+}
+
+.train-congrats .train-note {
+  margin-top: 0;
+}
+
+.train-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress.train-indeterminate > div {
+  width: 30%;
+  animation: train-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes train-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+.mistake-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(70vh, 760px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.mistake-card {
+  background: var(--panel-2);
+  border-radius: 6px;
+  border-left: 3px solid var(--danger);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: none;
+}
+
+.mistake-card.level-inaccuracy {
+  border-left-color: var(--warn);
+}
+
+.mistake-card.level-deviation {
+  border-left-color: var(--info);
+}
+
+.mistake-card.clickable {
+  cursor: pointer;
+}
+
+.mistake-card.clickable:hover {
+  background: #262522;
+}
+
+.mistake-card.selected,
+.mistake-card.current {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.mistake-card.done {
+  border-left-color: var(--accent);
+  opacity: 0.75;
+}
+
+.mistake-card .row {
+  gap: 6px;
+}
+
+.mistake-title {
+  font-weight: 700;
+}
+
+.mistake-detail {
+  color: var(--text-2);
+}
+
+.mistake-line {
+  font-size: 0.85rem;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.mistake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.train-focus .row {
+  gap: 6px;
 }

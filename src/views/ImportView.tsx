@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { Fragment, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
 import { Wdl } from '../components/Wdl';
 import { fetchChesscomGames } from '../games/chesscom';
@@ -8,14 +8,16 @@ import {
   MAX_STORED_PLIES,
   SITE_LABEL,
   SPEEDS,
+  speedLabel,
   type GameRecord,
   type ImportOptions,
   type ImportProgress,
   type Site,
   type Speed,
 } from '../games/types';
+import { msg, t, useT, type Msg } from '../i18n';
 import { colorLabel, START_KEY, type Color } from '../lib/chess';
-import { formatDate, pct, plural } from '../lib/util';
+import { formatDate, pct } from '../lib/util';
 import { DEFAULT_GENERATE, generateFromTree, mergeRepertoire, type GenerateOptions } from '../repertoire/generate';
 import { hasMove, repStats, type Repertoire, type RepStats } from '../repertoire/model';
 import {
@@ -102,7 +104,8 @@ function clamp(n: number, min: number, max: number) {
 
 interface ImportTask {
   running: { ctrl: AbortController; options: ImportOptions; progress: ImportProgress } | null;
-  error: string;
+  /** Messages so the error follows a change of language (plain strings come from the fetchers). */
+  error: Msg | string;
   lastId: string | null;
 }
 
@@ -125,7 +128,7 @@ async function runImport(options: ImportOptions) {
   if (task.running) return;
   const ctrl = new AbortController();
   setTask({
-    running: { ctrl, options, progress: { fetched: 0, kept: 0, message: `Connexion à ${SITE_LABEL[options.site]}...` } },
+    running: { ctrl, options, progress: { fetched: 0, kept: 0, message: t('import.connecting', { site: SITE_LABEL[options.site] }) } },
     error: '',
   });
   try {
@@ -135,22 +138,22 @@ async function runImport(options: ImportOptions) {
     };
     const games = await fetcher(options, onProgress, ctrl.signal);
     if (ctrl.signal.aborted) {
-      toast('Import annulé.');
+      toast(t('import.cancelled'));
       return;
     }
     if (!games.length) {
-      setTask({ error: 'Aucune partie ne correspond à ces critères (cadences, parties classées, couleur).' });
+      setTask({ error: { key: 'import.noMatch' } });
       return;
     }
     const id = `${options.site}:${options.username.toLowerCase()}`;
     saveSource({ id, site: options.site, username: options.username, importedAt: Date.now(), options, games });
     setTask({ lastId: id });
-    toast(`${plural(games.length, 'partie importée', 'parties importées')} depuis ${SITE_LABEL[options.site]}.`);
+    toast(t('import.imported', { count: games.length, site: SITE_LABEL[options.site] }));
   } catch (e) {
-    if (ctrl.signal.aborted) toast('Import annulé.');
+    if (ctrl.signal.aborted) toast(t('import.cancelled'));
     else if (e instanceof TypeError) {
-      setTask({ error: `Impossible de joindre ${SITE_LABEL[options.site]}. Vérifiez votre connexion internet puis réessayez.` });
-    } else setTask({ error: (e as Error).message || 'Erreur inconnue pendant l\'import.' });
+      setTask({ error: { key: 'import.unreachable', params: { site: SITE_LABEL[options.site] } } });
+    } else setTask({ error: (e as Error).message || { key: 'import.unknownError' } });
   } finally {
     setTask({ running: null });
   }
@@ -179,7 +182,12 @@ function countNew(dst: Repertoire, src: Repertoire): number {
   return n;
 }
 
-const speedLabel = (id: Speed) => SPEEDS.find((s) => s.id === id)?.label ?? id;
+/** Puts React nodes in place of the {name} placeholders left in a translated text. */
+function rich(text: string, nodes: Record<string, ReactNode>): ReactNode[] {
+  return text
+    .split(/\{(\w+)\}/g)
+    .map((part, i) => (i % 2 ? <Fragment key={i}>{part in nodes ? nodes[part] : `{${part}}`}</Fragment> : part));
+}
 
 /** Number input that lets the field be cleared while typing. */
 function NumberInput({ value, min, max, step = 1, disabled, onChange }: {
@@ -219,12 +227,13 @@ function NumberInput({ value, min, max, step = 1, disabled, onChange }: {
 
 export function ImportView() {
   const state = useStore();
-  const t = useSyncExternalStore(subscribeTask, () => task);
+  const t = useT();
+  const job = useSyncExternalStore(subscribeTask, () => task);
   const [form, setForm] = useState(loadForm);
   const [gen, setGen] = useState(loadGenForm);
   const [applied, setApplied] = useState(false);
 
-  const running = t.running;
+  const running = job.running;
   const avail = SPEEDS.filter((s) => s.sites.includes(form.site));
   const speeds = form.speeds.filter((s) => avail.some((a) => a.id === s));
   const canImport = !running && form.username.trim() !== '' && speeds.length > 0;
@@ -265,7 +274,7 @@ export function ImportView() {
   };
 
   const remove = (id: string, label: string, count: number) => {
-    if (!confirm(`Supprimer les ${plural(count, 'partie')} de ${label} ? Votre répertoire n'est pas modifié.`)) return;
+    if (!confirm(t('import.removeConfirm', { count, label }))) return;
     removeSource(id);
     if (task.lastId === id) setTask({ lastId: null });
   };
@@ -309,46 +318,48 @@ export function ImportView() {
       if (gen.mode === 'replace') {
         const cur = state.reps[c];
         const curMoves = repStats(cur).moves;
-        const msg =
-          `Remplacer votre répertoire ${colorLabel(c)} (${plural(curMoves, 'coup')}) par le répertoire généré (${plural(moves, 'coup')}) ?\n\n` +
-          'Les coups absents du nouveau répertoire seront perdus. Les positions conservées gardent leur commentaire et leur progression d\'entraînement.';
-        if (curMoves && !confirm(msg)) continue;
+        const question = t('import.replaceConfirm', {
+          color: colorLabel(c),
+          current: t('common.moves', { count: curMoves }),
+          generated: t('common.moves', { count: moves }),
+        });
+        if (curMoves && !confirm(question)) continue;
         for (const key of Object.keys(rep.nodes)) {
           if (cur.cards[key]) rep.cards[key] = cur.cards[key];
           const comment = cur.nodes[key]?.comment;
           if (comment) rep.nodes[key].comment = comment;
         }
         setRepertoire(c, rep);
-        done.push(`${colorLabel(c)} : ${plural(moves, 'coup')}`);
+        done.push(t('import.doneReplaced', { color: colorLabel(c), moves: t('common.moves', { count: moves }) }));
       } else {
         const added = mergeRepertoire(state.reps[c], rep);
         merged = true;
-        done.push(`${colorLabel(c)} : ${plural(added, 'coup ajouté', 'coups ajoutés')}`);
+        done.push(t('import.doneMerged', { color: colorLabel(c), count: added }));
       }
     }
     if (merged) repsChanged();
     if (!done.length) {
-      if (empty) toast('Aucun coup ne passe ces seuils : baissez les minimums ou importez plus de parties.', 'error');
+      if (empty) toast(t('import.noMovesPass'), 'error');
       return;
     }
     saveJson(GEN_KEY, gen);
-    toast(`Répertoire ${gen.mode === 'replace' ? 'remplacé' : 'complété'} (${done.join(', ')}).`);
+    toast(t(gen.mode === 'replace' ? 'import.repReplaced' : 'import.repMerged', { list: done.join(', ') }));
     setApplied(true);
   };
 
   // ----- render -----
 
-  const lastSource = t.lastId ? state.sources.find((s) => s.id === t.lastId) : undefined;
+  const lastSource = job.lastId ? state.sources.find((s) => s.id === job.lastId) : undefined;
   const summary = useMemo(() => (lastSource ? summarize(lastSource.games) : null), [lastSource]);
   const ratio = running
     ? Math.min(1, (running.options.site === 'lichess' ? running.progress.fetched : running.progress.kept) / running.options.maxGames)
     : 0;
-  const filterLabel = state.settings.speeds ? state.settings.speeds.map(speedLabel).join(', ') : 'toutes les cadences';
+  const filterLabel = state.settings.speeds ? state.settings.speeds.map(speedLabel).join(', ') : t('import.allSpeeds');
 
   return (
     <div className="page import-page">
       <div className="page-head">
-        <h2>Importer mes parties</h2>
+        <h2>{t('import.title')}</h2>
       </div>
 
       <div className="grid-2">
@@ -360,11 +371,11 @@ export function ImportView() {
           }}
         >
           <div className="panel-head">
-            <h3>Nouvel import</h3>
+            <h3>{t('import.newImport')}</h3>
           </div>
           <div className="import-form">
             <div className="field">
-              <span>Site</span>
+              <span>{t('import.site')}</span>
               <div className="seg">
                 {SITES.map((s) => (
                   <button key={s} type="button" className={form.site === s ? 'active' : ''} onClick={() => setSite(s)}>
@@ -374,33 +385,33 @@ export function ImportView() {
               </div>
             </div>
             <label className="field">
-              <span>Nom d'utilisateur</span>
+              <span>{t('import.username')}</span>
               <input
                 type="text"
                 value={form.username}
-                placeholder={`Votre pseudo ${SITE_LABEL[form.site]}`}
+                placeholder={t('import.usernamePlaceholder', { site: SITE_LABEL[form.site] })}
                 autoComplete="off"
                 spellCheck={false}
                 onChange={(e) => patch({ username: e.target.value })}
               />
             </label>
             <label className="field">
-              <span>Nombre de parties</span>
+              <span>{t('import.maxGames')}</span>
               <NumberInput value={form.maxGames} min={1} max={MAX_GAMES} onChange={(maxGames) => patch({ maxGames })} />
-              <small className="field-help">Les plus récentes d'abord ({MAX_GAMES} maximum).</small>
+              <small className="field-help">{t('import.maxGamesHelp', { max: MAX_GAMES })}</small>
             </label>
             <div className="field">
-              <span>Couleur</span>
+              <span>{t('import.color')}</span>
               <div className="seg">
                 {(['both', 'white', 'black'] as const).map((c) => (
                   <button key={c} type="button" className={form.colors === c ? 'active' : ''} onClick={() => patch({ colors: c })}>
-                    {c === 'both' ? 'Les deux' : colorLabel(c)}
+                    {c === 'both' ? t('common.both') : colorLabel(c)}
                   </button>
                 ))}
               </div>
             </div>
             <div className="field full">
-              <span>Cadences</span>
+              <span>{t('import.speeds')}</span>
               <div className="checks">
                 {avail.map((s) => (
                   <label key={s.id} className="check-chip">
@@ -412,29 +423,25 @@ export function ImportView() {
             </div>
             <label className="switch full">
               <input type="checkbox" checked={form.ratedOnly} onChange={(e) => patch({ ratedOnly: e.target.checked })} />
-              <span>Parties classées uniquement</span>
+              <span>{t('import.ratedOnly')}</span>
             </label>
           </div>
           <div className="row">
             <button type="submit" className="btn primary" disabled={!canImport}>
-              <Icon name="download" /> Importer
+              <Icon name="download" /> {t('import.importBtn')}
             </button>
           </div>
-          <p className="muted small">
-            Les parties sont téléchargées directement depuis l'API publique de Lichess ou de Chess.com par votre navigateur,
-            puis stockées uniquement sur cet appareil : rien n'est envoyé à un serveur. Seuls les {MAX_STORED_PLIES / 2} premiers
-            coups de chaque partie sont conservés. Réimporter un compte remplace ses parties.
-          </p>
+          <p className="muted small">{t('import.privacy', { moves: MAX_STORED_PLIES / 2 })}</p>
         </form>
 
         <div className="stack import-side">
           {running && (
             <div className="panel">
               <div className="panel-head">
-                <h3>Import en cours</h3>
+                <h3>{t('import.inProgress')}</h3>
                 <span className="grow" />
                 <button type="button" className="btn small danger" onClick={() => running.ctrl.abort()}>
-                  Annuler
+                  {t('import.cancel')}
                 </button>
               </div>
               <p className="small">{running.progress.message}</p>
@@ -442,27 +449,38 @@ export function ImportView() {
                 <div style={{ width: `${ratio * 100}%` }} />
               </div>
               <p className="muted small">
-                {running.options.username} ({SITE_LABEL[running.options.site]}) :{' '}
-                {plural(running.progress.kept, 'partie retenue', 'parties retenues')} sur {running.options.maxGames} demandées
+                {t('import.progressKept', {
+                  user: running.options.username,
+                  site: SITE_LABEL[running.options.site],
+                  count: running.progress.kept,
+                  max: running.options.maxGames,
+                })}
               </p>
             </div>
           )}
 
-          {!running && t.error && <div className="feedback bad">{t.error}</div>}
+          {!running && job.error && <div className="feedback bad">{msg(job.error)}</div>}
 
           {!running && lastSource && summary && (
             <div className="panel">
               <div className="panel-head">
-                <h3>Import terminé</h3>
+                <h3>{t('import.done')}</h3>
               </div>
               <p>
-                {plural(lastSource.games.length, 'partie')} de <b>{lastSource.username}</b> ({SITE_LABEL[lastSource.site]})
-                {lastSource.games.length > 0 && (
-                  <>
-                    , du {formatDate(summary.first)} au {formatDate(summary.last)}
-                  </>
+                {rich(
+                  lastSource.games.length > 0
+                    ? t('import.summaryRange', {
+                        games: t('common.games', { count: lastSource.games.length }),
+                        site: SITE_LABEL[lastSource.site],
+                        first: formatDate(summary.first),
+                        last: formatDate(summary.last),
+                      })
+                    : t('import.summary', {
+                        games: t('common.games', { count: lastSource.games.length }),
+                        site: SITE_LABEL[lastSource.site],
+                      }),
+                  { user: <b>{lastSource.username}</b> },
                 )}
-                .
               </p>
               {COLORS.map((c) => {
                 const s = summary.stats[c];
@@ -470,9 +488,9 @@ export function ImportView() {
                   <div key={c} className="import-color">
                     <div className="row">
                       <b>{colorLabel(c)}</b>
-                      <span className="muted small">{plural(s.n, 'partie')}</span>
+                      <span className="muted small">{t('common.games', { count: s.n })}</span>
                       <span className="grow" />
-                      {s.n > 0 && <span className="small">score {pct(scoreOf(s))}</span>}
+                      {s.n > 0 && <span className="small">{t('import.score', { score: pct(scoreOf(s)) })}</span>}
                     </div>
                     <Wdl s={s} />
                   </div>
@@ -483,17 +501,17 @@ export function ImportView() {
 
           <div className="panel">
             <div className="panel-head">
-              <h3>Comptes importés</h3>
+              <h3>{t('import.accounts')}</h3>
             </div>
             {state.sources.length === 0 ? (
-              <p className="muted small">Aucun compte importé pour l'instant.</p>
+              <p className="muted small">{t('import.noAccounts')}</p>
             ) : (
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Compte</th>
-                    <th>Parties</th>
-                    <th>Importé le</th>
+                    <th>{t('import.colAccount')}</th>
+                    <th>{t('import.colGames')}</th>
+                    <th>{t('import.colImported')}</th>
                     <th />
                   </tr>
                 </thead>
@@ -513,7 +531,8 @@ export function ImportView() {
                           <button
                             type="button"
                             className="icon-btn small"
-                            title="Réimporter avec les mêmes réglages"
+                            title={t('import.reimport')}
+                            aria-label={t('import.reimport')}
                             disabled={!!running}
                             onClick={() => reimport(s.options)}
                           >
@@ -522,7 +541,8 @@ export function ImportView() {
                           <button
                             type="button"
                             className="icon-btn small"
-                            title="Supprimer ces parties"
+                            title={t('import.deleteGames')}
+                            aria-label={t('import.deleteGames')}
                             disabled={!!running}
                             onClick={() => remove(s.id, `${s.username} (${SITE_LABEL[s.site]})`, s.games.length)}
                           >
@@ -541,35 +561,33 @@ export function ImportView() {
 
       <div className="panel">
         <div className="panel-head">
-          <h3>Générer le répertoire</h3>
+          <h3>{t('import.generate')}</h3>
         </div>
         {!hasGames || !preview ? (
-          <p className="muted">Importez d'abord des parties : le répertoire est construit à partir des coups que vous jouez réellement.</p>
+          <p className="muted">{t('import.generateEmpty')}</p>
         ) : (
           <>
             <p className="muted small">
-              Construit votre répertoire habituel à partir de toutes vos parties importées ({plural(preview.games, 'partie')},{' '}
-              {filterLabel}, filtre réglable dans l'onglet Analyse) : vos coups fréquents et les réponses adverses que vous
-              rencontrez souvent.
+              {t('import.generateHelp', { games: t('common.games', { count: preview.games }), filter: filterLabel })}
             </p>
             <div className="gen-options">
               <label className="field">
-                <span>Profondeur (en coups)</span>
+                <span>{t('import.depth')}</span>
                 <NumberInput
                   value={Math.round(gen.opts.maxPly / 2)}
                   min={1}
                   max={20}
                   onChange={(n) => patchOpts({ maxPly: n * 2 })}
                 />
-                <small className="field-help">Nombre de coups de chaque camp couverts par le répertoire.</small>
+                <small className="field-help">{t('import.depthHelp')}</small>
               </label>
               <label className="field">
-                <span>Vos coups : joués au moins N fois</span>
+                <span>{t('import.minGamesMine')}</span>
                 <NumberInput value={gen.opts.minGamesMine} min={1} max={100} onChange={(minGamesMine) => patchOpts({ minGamesMine })} />
-                <small className="field-help">Un coup joué plus rarement n'entre pas dans le répertoire.</small>
+                <small className="field-help">{t('import.minGamesMineHelp')}</small>
               </label>
               <label className="field">
-                <span>et dans au moins X % des cas</span>
+                <span>{t('import.minShareMine')}</span>
                 <NumberInput
                   value={Math.round(gen.opts.minShareMine * 100)}
                   min={0}
@@ -577,12 +595,12 @@ export function ImportView() {
                   step={5}
                   onChange={(n) => patchOpts({ minShareMine: n / 100 })}
                 />
-                <small className="field-help">Part minimale parmi vos coups dans la position. À défaut, votre coup le plus joué est gardé.</small>
+                <small className="field-help">{t('import.minShareMineHelp')}</small>
               </label>
               <label className="field">
-                <span>Réponses adverses : rencontrées au moins N fois</span>
+                <span>{t('import.minGamesOpp')}</span>
                 <NumberInput value={gen.opts.minGamesOpp} min={1} max={100} onChange={(minGamesOpp) => patchOpts({ minGamesOpp })} />
-                <small className="field-help">Les réponses plus rares sont ignorées : vous préparez ce que vous rencontrez vraiment.</small>
+                <small className="field-help">{t('import.minGamesOppHelp')}</small>
               </label>
             </div>
 
@@ -598,7 +616,7 @@ export function ImportView() {
                       setGen((g) => ({ ...g, colors: c }));
                     }}
                   >
-                    {c === 'both' ? 'Les deux couleurs' : colorLabel(c)}
+                    {c === 'both' ? t('import.bothColors') : colorLabel(c)}
                   </button>
                 ))}
               </div>
@@ -613,7 +631,7 @@ export function ImportView() {
                       setGen((g) => ({ ...g, mode: m }));
                     }}
                   >
-                    {m === 'merge' ? 'Fusionner avec mon répertoire' : 'Remplacer'}
+                    {m === 'merge' ? t('import.modeMerge') : t('import.modeReplace')}
                   </button>
                 ))}
               </div>
@@ -627,24 +645,27 @@ export function ImportView() {
                     <div className="row">
                       <b>{colorLabel(c)}</b>
                       <span className="grow" />
-                      <span className="muted small">{plural(p.games, 'partie')}</span>
+                      <span className="muted small">{t('common.games', { count: p.games })}</span>
                     </div>
                     {p.stats.moves === 0 ? (
-                      <p className="muted small">Aucun coup ne passe ces seuils pour cette couleur.</p>
+                      <p className="muted small">{t('import.noMovesColor')}</p>
                     ) : (
                       <>
                         <p className="small">
-                          {plural(p.stats.moves, 'coup')} : {plural(p.stats.cards, 'position')} où vous jouez,{' '}
-                          {plural(p.stats.lines, 'fin de ligne', 'fins de ligne')}.
+                          {t('import.previewStats', {
+                            moves: t('common.moves', { count: p.stats.moves }),
+                            positions: t('common.positions', { count: p.stats.cards }),
+                            lines: t('import.lineEnds', { count: p.stats.lines }),
+                          })}
                         </p>
                         <p className="muted small">
                           {gen.mode === 'merge'
                             ? p.added
-                              ? `Fusion : ${plural(p.added, 'nouveau coup', 'nouveaux coups')} pour votre répertoire (${plural(p.current, 'coup')} actuellement).`
-                              : 'Fusion : votre répertoire contient déjà tous ces coups.'
+                              ? t('import.mergeAdds', { count: p.added, current: t('common.moves', { count: p.current }) })
+                              : t('import.mergeNothing')
                             : p.current
-                              ? `Remplace votre répertoire actuel (${plural(p.current, 'coup')}).`
-                              : 'Votre répertoire est vide pour cette couleur.'}
+                              ? t('import.replaceCurrent', { moves: t('common.moves', { count: p.current }) })
+                              : t('import.repEmpty')}
                         </p>
                       </>
                     )}
@@ -660,20 +681,20 @@ export function ImportView() {
                 disabled={targets.every((c) => preview.per[c].stats.moves === 0)}
                 onClick={apply}
               >
-                <Icon name="book" /> {gen.mode === 'merge' ? 'Ajouter à mon répertoire' : 'Remplacer mon répertoire'}
+                <Icon name="book" /> {gen.mode === 'merge' ? t('import.applyMerge') : t('import.applyReplace')}
               </button>
               {applied && (
                 <>
-                  <span className="success small">Répertoire mis à jour.</span>
+                  <span className="success small">{t('import.applied')}</span>
                   <span className="grow" />
                   <button type="button" className="btn small" onClick={() => setView('repertoire')}>
-                    Voir le répertoire
+                    {t('import.viewRep')}
                   </button>
                   <button type="button" className="btn small" onClick={() => setView('explorer')}>
-                    Explorer
+                    {t('import.explore')}
                   </button>
                   <button type="button" className="btn small" onClick={() => setView('analysis')}>
-                    Chercher mes points faibles
+                    {t('import.findWeaknesses')}
                   </button>
                 </>
               )}

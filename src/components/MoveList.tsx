@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
+import type { MoveClass } from '../engine/evaluation';
+import { useT } from '../i18n';
 import type { Ply } from '../lib/chess';
+import { EvalMini, MoveBadge } from './MoveBadge';
 
 interface Props {
   plies: Ply[];
@@ -9,9 +12,12 @@ interface Props {
   inRep?: (index: number) => boolean;
   /** Moves before this index are greyed (e.g. the training starting line). */
   dimBefore?: number;
+  /** Engine evaluation (White's point of view) and quality of a move, when known. */
+  quality?: (index: number) => { cp: number; cls: MoveClass } | undefined;
 }
 
-export function MoveList({ plies, cursor, onGo, inRep, dimBefore = 0 }: Props) {
+export function MoveList({ plies, cursor, onGo, inRep, dimBefore = 0, quality }: Props) {
+  const t = useT();
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,26 +29,28 @@ export function MoveList({ plies, cursor, onGo, inRep, dimBefore = 0 }: Props) {
     rows.push(
       <div className="mv-row" key={i}>
         <span className="mv-num">{i / 2 + 1}.</span>
-        {[i, i + 1].map((j) =>
-          j < plies.length ? (
+        {[i, i + 1].map((j) => {
+          if (j >= plies.length) return <span key={j} className="mv empty" />;
+          const q = quality?.(j);
+          return (
             <button
               key={j}
               className={`mv ${cursor === j + 1 ? 'active' : ''} ${inRep?.(j) ? 'book' : ''} ${j < dimBefore ? 'dim' : ''}`}
               onClick={() => onGo(j + 1)}
             >
-              {plies[j].san}
+              <span className="mv-san">{plies[j].san}</span>
+              {q && <MoveBadge cls={q.cls} />}
+              {q && <EvalMini cp={q.cp} />}
             </button>
-          ) : (
-            <span key={j} className="mv empty" />
-          ),
-        )}
+          );
+        })}
       </div>,
     );
   }
 
   return (
     <div className="movelist" ref={box}>
-      {plies.length ? rows : <p className="muted small">Jouez un coup sur l'échiquier.</p>}
+      {plies.length ? rows : <p className="muted small">{t('common.playAMove')}</p>}
     </div>
   );
 }

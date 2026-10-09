@@ -1,16 +1,28 @@
+import { t } from '../i18n';
 import type { Color } from '../lib/chess';
 
 export type Site = 'lichess' | 'chesscom';
 export type Speed = 'ultrabullet' | 'bullet' | 'blitz' | 'rapid' | 'classical' | 'daily';
 export type Result = 'win' | 'draw' | 'loss';
 
-export const SPEEDS: { id: Speed; label: string; sites: Site[] }[] = [
-  { id: 'ultrabullet', label: 'UltraBullet', sites: ['lichess'] },
-  { id: 'bullet', label: 'Bullet', sites: ['lichess', 'chesscom'] },
-  { id: 'blitz', label: 'Blitz', sites: ['lichess', 'chesscom'] },
-  { id: 'rapid', label: 'Rapide', sites: ['lichess', 'chesscom'] },
-  { id: 'classical', label: 'Classique', sites: ['lichess'] },
-  { id: 'daily', label: 'Par correspondance', sites: ['lichess', 'chesscom'] },
+export const speedLabel = (s: Speed) => t(`common.speed.${s}`);
+
+const speed = (id: Speed, sites: Site[]) => ({
+  id,
+  sites,
+  /** Translated on read. */
+  get label() {
+    return speedLabel(id);
+  },
+});
+
+export const SPEEDS: { id: Speed; readonly label: string; sites: Site[] }[] = [
+  speed('ultrabullet', ['lichess']),
+  speed('bullet', ['lichess', 'chesscom']),
+  speed('blitz', ['lichess', 'chesscom']),
+  speed('rapid', ['lichess', 'chesscom']),
+  speed('classical', ['lichess']),
+  speed('daily', ['lichess', 'chesscom']),
 ];
 
 export const SITE_LABEL: Record<Site, string> = { lichess: 'Lichess', chesscom: 'Chess.com' };
