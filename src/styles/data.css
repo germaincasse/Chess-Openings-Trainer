@@ -1,0 +1,57 @@
+/* ---------- data view ---------- */
+.dv-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+
+.dv-facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.dv-facts dd {
+  margin: 0;
+}
+
+.dv-actions {
+  width: 1%;
+  text-align: right;
+}
+
+.dv-settings {
+  gap: 14px;
+}
+
+.dv-value {
+  color: var(--text);
+}
+
+.dv-range {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 4px 0;
+}
+
+.field > .dv-hint {
+  font-weight: 400;
+}
+
+.dv-credits {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-2);
+}
+
+.dv-danger {
+  border: 1px solid rgba(224, 93, 79, 0.4);
+}
+
+.dv-danger h3 {
+  color: #ff8a7d;
+}

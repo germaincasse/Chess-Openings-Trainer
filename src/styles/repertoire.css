@@ -1,0 +1,277 @@
+/* ---------- repertoire view ---------- */
+.rt-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.rt-stat {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rt-stat strong {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.rt-stat span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.rt-stat.due strong {
+  color: var(--warn);
+}
+
+.rt-head {
+  flex-wrap: wrap;
+}
+
+.rt-search {
+  width: 240px;
+  max-width: 100%;
+  padding: 5px 10px;
+  font-size: 0.88rem;
+}
+
+/* tree */
+.rt-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.92rem;
+}
+
+.rt-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  border-radius: 4px;
+}
+
+.rt-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.rt-toggle,
+.rt-toggle-spacer {
+  width: 22px;
+  height: 24px;
+  flex: none;
+}
+
+.rt-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rt-toggle:hover {
+  color: var(--text);
+  background: #3d3a36;
+}
+
+.rt-toggle svg {
+  transition: transform 0.15s;
+}
+
+.rt-toggle.open svg {
+  transform: rotate(90deg);
+}
+
+.rt-line {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 2px;
+  padding-top: 2px;
+}
+
+.rt-opening {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 4px 1px;
+}
+
+.rt-opening .eco {
+  color: var(--text-2);
+  margin-right: 6px;
+}
+
+.rt-step {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.rt-num {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-left: 4px;
+}
+
+.rt-mv {
+  border: 0;
+  background: none;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.rt-mv.own {
+  color: var(--text);
+}
+
+.rt-mv.opp {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rt-mv:hover {
+  background: #3d3a36;
+  color: var(--accent-hover);
+}
+
+.rt-comment {
+  font-style: italic;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0 6px 0 2px;
+}
+
+.rt-tag {
+  margin-left: 6px;
+  align-self: center;
+}
+
+.rt-more {
+  border: 0;
+  cursor: pointer;
+}
+
+.rt-more:hover {
+  background: #4a4743;
+  color: var(--text);
+}
+
+.rt-train {
+  opacity: 0;
+  margin-top: 1px;
+}
+
+.rt-row:hover .rt-train,
+.rt-train:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rt-train {
+    opacity: 1;
+  }
+}
+
+.rt-children {
+  margin-left: 11px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* search results */
+.rt-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rt-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px;
+}
+
+.rt-result:hover {
+  background: #3d3a36;
+}
+
+.rt-result-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.rt-result-main .rt-opening {
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.rt-result-line {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* empty state */
+.rt-ways {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 820px;
+  text-align: left;
+}
+
+.rt-way {
+  background: var(--panel-2);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--text-2);
+}
+
+.rt-way strong {
+  color: var(--text);
+}
+
+.rt-way p {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .rt-ways {
+    grid-template-columns: 1fr;
+  }
+}

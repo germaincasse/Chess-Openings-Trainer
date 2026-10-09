@@ -1,0 +1,65 @@
+/* ---------- training view ---------- */
+.training-empty .empty-state h2 {
+  color: var(--text);
+}
+
+.training-empty .empty-state p {
+  max-width: 520px;
+}
+
+.train-root {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+
+.train-root-line {
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.feedback .train-note {
+  margin-top: 4px;
+  font-weight: 400;
+  font-size: 0.88rem;
+  color: var(--text-2);
+  white-space: pre-line;
+}
+
+.train-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.train-stat {
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.train-stat strong {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.train-stat strong small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.train-stat > span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}

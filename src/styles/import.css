@@ -1,0 +1,69 @@
+/* Import view */
+.import-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.import-form .full {
+  grid-column: 1 / -1;
+}
+
+.import-form .seg {
+  align-self: flex-start;
+}
+
+.import-side {
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.import-color {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.account-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.gen-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.gen-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.gen-card {
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-page .seg {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .import-form {
+    grid-template-columns: 1fr;
+  }
+}
